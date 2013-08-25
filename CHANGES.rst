@@ -8,6 +8,10 @@ Manticore extensions CHANGES
 
 .. include:: manticore-links.rst
 
+2013-08-25 0.1.1
+================
+- let aggregated changes .rst include the global/manticore-links.rst
+
 2013-08-25 0.1.0
 ================
 - refactored to ``zt.manticore.ext`` namespace
