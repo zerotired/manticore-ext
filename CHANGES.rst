@@ -8,6 +8,10 @@ Manticore extensions CHANGES
 
 .. include:: manticore-links.rst
 
+2013-08-25 0.1.2
+================
+- ``zt.manticore.ext.changes``: search for CHANGES.rst on top and second level of repository tree
+
 2013-08-25 0.1.1
 ================
 - let aggregated changes .rst include the global/manticore-links.rst

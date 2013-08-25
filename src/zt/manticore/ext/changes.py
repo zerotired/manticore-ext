@@ -1,5 +1,6 @@
 import os, sys
 import re
+import glob
 from pprint import pprint
 from collections import namedtuple
 from operator import itemgetter, attrgetter
@@ -145,10 +146,10 @@ class ChangesAggregator(object):
     def walk_projects_changes_files(self):
         """Scans all main level directories in the projects directory for a 'CHANGES.rst' file"""
         for project in walk_projects(self.project_path):
-            changes_files_found = [changes_file for changes_file in os.listdir(project.path) if changes_file in self.filename_choices]
+            possible_files = glob.glob(project.path + '/*') + glob.glob(project.path + '/*/*')
+            changes_files_found = [changes_file for changes_file in possible_files if os.path.basename(changes_file) in self.filename_choices]
             if not changes_files_found: yield project
             for changes_file_found in changes_files_found:
-                changes_file_found = os.path.join(project.path, changes_file_found)
                 project_ready = copy.deepcopy(project)
                 project_ready.changes_file = changes_file_found
                 yield project_ready
