@@ -8,6 +8,11 @@ Manticore extensions CHANGES
 
 .. include:: manticore-links.rst
 
+
+2013-08-26 0.1.3
+================
+- minor fixes and enhancements
+
 2013-08-25 0.1.2
 ================
 - ``zt.manticore.ext.changes``: search for CHANGES.rst on top and second level of repository tree
