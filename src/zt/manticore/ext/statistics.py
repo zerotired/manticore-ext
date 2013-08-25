@@ -54,7 +54,7 @@ class Statistics:
         if not os.path.isdir(path):
             os.makedirs(path)
         f = open(self.statistics_index, 'w')
-        f.write(rest_header('Repository statistics', 'zt.manticore.statistics'))
+        f.write(rest_header('Repository statistics', 'zt.manticore.ext.statistics'))
         f.write('Statistics of the following projects:\n\n')
         for project in self.projects:
             f.write('- `{0} <./statistics/{0}/index.html>`_'.format(project.name))

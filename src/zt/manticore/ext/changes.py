@@ -214,7 +214,7 @@ class ChangesAggregator(object):
         project_names = [project.name for project in self.projects]
         project_names.sort()
         f = open(summary_file, 'w')
-        f.write(rest_header('Release notes', 'zt.manticore.changes'))
+        f.write(rest_header('Release notes', 'zt.manticore.ext.changes'))
         f.write('\n.. include:: ../global/manticore-links.rst\n\n')
         f.write('Aggregated release notes across all projects ``CHANGES.rst`` '
                 'in reverse chronological order as an activity stream.\n\n')
@@ -255,15 +255,14 @@ Timeline data: :download:`changes.js`.
         return timeline_widget
 
     def write_summary_js(self):
-        summary = """
-        var timeline_data = {
-            'dateTimeFormat': 'iso8601',
-            'wikiURL': "http://manticore.example.net/summary/changes.html",
-            'wikiSection': "project changes",
-            'events': [
-                %(events)s
-            ]
-        }
+        summary = """var timeline_data = {
+    'dateTimeFormat': 'iso8601',
+    'wikiURL': "http://manticore.example.net/summary/changes.html",
+    'wikiSection': "project changes",
+    'events': [
+        %(events)s
+    ]
+}
         """
 
         """
@@ -277,12 +276,13 @@ Timeline data: :download:`changes.js`.
         ]
         """
         event_template = """
-                {'start': '%(start_date)s',
-                'title': '%(title)s',
-                'description': '%(description)s',
-                'image': '%(image)s',
-                'link': '%(link)s'
-                },
+        {
+            'start': '%(start_date)s',
+            'title': '%(title)s',
+            'description': '%(description)s',
+            'image': '%(image)s',
+            'link': '%(link)s'
+        },
         """
 
         def sanitize_js(text):
@@ -293,6 +293,8 @@ Timeline data: :download:`changes.js`.
 
         for change in changes:
             start_date = change.date
+            if not start_date:
+                continue
             title = sanitize_js(self.get_change_title(change, short=True))
             description = sanitize_js(self.sanitize_change_text(change.text))
             image = '' # TODO
