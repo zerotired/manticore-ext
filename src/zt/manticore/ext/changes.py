@@ -214,6 +214,7 @@ class ChangesAggregator(object):
         project_names.sort()
         f = open(summary_file, 'w')
         f.write(rest_header('Release notes', 'zt.manticore.changes'))
+        f.write('\n.. include:: ../global/manticore-links.rst\n\n')
         f.write('Aggregated release notes across all projects ``CHANGES.rst`` '
                 'in reverse chronological order as an activity stream.\n\n')
         f.write("project names: ")
