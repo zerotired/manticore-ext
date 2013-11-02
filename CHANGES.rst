@@ -9,13 +9,17 @@ Manticore extensions CHANGES
 .. include:: manticore-links.rst
 
 
+2013-11-03 0.1.4
+================
+- statistics fix: include link to "all-git" in rst index file
+
 2013-08-26 0.1.3
 ================
 - minor fixes and enhancements
 
 2013-08-25 0.1.2
 ================
-- ``zt.manticore.ext.changes``: search for CHANGES.rst on top and second level of repository tree
+- ``zt.manticore.ext.changes``: search for CHANGES.rst on top and second directory level of repository tree
 
 2013-08-25 0.1.1
 ================
