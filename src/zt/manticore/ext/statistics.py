@@ -56,10 +56,9 @@ class Statistics:
         f = open(self.statistics_index, 'w')
         f.write(rest_header('Repository statistics', 'zt.manticore.ext.statistics'))
         f.write('Statistics of the following projects:\n\n')
-        f.write('- `{0} <./statistics/{0}/index.html>`_'.format('all-git'))
+        f.write('- `{0} <./statistics/{0}/index.html>`_\n'.format('all-git'))
         for project in self.projects:
-            f.write('- `{0} <./statistics/{0}/index.html>`_'.format(project.name))
-            f.write('\n')
+            f.write('- `{0} <./statistics/{0}/index.html>`_\n'.format(project.name))
         f.write('\n\n\n')
         f.close()
 

@@ -9,6 +9,10 @@ Manticore extensions CHANGES
 .. include:: manticore-links.rst
 
 
+2013-11-03 0.1.5
+================
+- statistics fix: add newline after "all-git" in rst index file
+
 2013-11-03 0.1.4
 ================
 - statistics fix: include link to "all-git" in rst index file
