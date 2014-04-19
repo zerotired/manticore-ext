@@ -8,9 +8,16 @@ Manticore extensions CHANGES
 
 .. include:: manticore-links.rst
 
+2014-04-19 0.2.1
+================
+enhance gource extension:
+- use VideoAudioMixer in postprocessing step to properly truncate
+  duration of the final artifact to maximum video length
+- add --time-lapse option to render shorter videos
 
 2014-04-19 0.2.0
 ================
+enhance gource extension:
 - add --audio-source commandline option to provide background audio
 - fix ffmpeg command after upgrading to ffmpeg-2.2.1
 

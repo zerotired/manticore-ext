@@ -1,6 +1,8 @@
-import os, sys
+import os
+import sys
 import re
 import shutil
+import shlex
 import subprocess
 from . import Project, walk_projects
 
@@ -24,17 +26,21 @@ Synopsis::
 class GourceRenderer(object):
     """Renders project history using 'gource'."""
 
-    def __init__(self, source_path, target_path, overwrite = False, audio_source = None, audio_loops = None):
+    def __init__(self, source_path, target_path, overwrite = False, audio_source = None, audio_loops = None, time_lapse = False):
 
         self.project_path = source_path
         self.output_path = target_path
 
         # configuration data
         self.gource_cmd_tpl = """
-            gource --title "%(title)s"  \\
-                --seconds-per-day 5 --time-scale 1.5  \\
-                --disable-auto-rotate --file-idle-time 20  \\
+            gource \\
+                --title "%(title)s" --key \\
+                --viewport 1280x720 \\
+                --multi-sampling \\
+                --disable-auto-rotate \\
                 --hide bloom  \\
+                %(speed_options)s  \\
+                --file-idle-time 20 --max-file-lag 2.5  \\
                 --stop-at-end -o -"""
 
         # options
@@ -43,10 +49,15 @@ class GourceRenderer(object):
             audio_loops = 10
         self.audio_source = audio_source
         self.audio_loops = audio_loops
+        self.time_lapse = time_lapse
 
     def get_gource_command(self, title):
+        speed_options = '--seconds-per-day 5 --time-scale 1.5'
+        if self.time_lapse:
+            speed_options = '--seconds-per-day 1 --time-scale 4'
         gource_options = {
             'title': title,
+            'speed_options': speed_options,
         }
         command = self.gource_cmd_tpl % gource_options
         return command
@@ -85,7 +96,11 @@ class GourceRenderer(object):
             return False
 
         mi = MediaInfo(video_file)
-        if not 'video' in mi.get_streams():
+        if 'video' in mi.get_streams():
+            print "INFO: Video:    ", video_file
+            print "INFO: Duration: ", mi.duration
+
+        else:
             print "ERROR: video '%s' could not be recorded" % video_file
             os.unlink(video_file)
             video_file = None
@@ -97,12 +112,12 @@ class GourceRenderer(object):
 
         vr = VideoRecorder(video_path, video_filename)
         if vr.exists() and not self.overwrite:
+            print "INFO: Video exists and --overwrite is not given, will skip further processing."
             return vr.get_video_file()
 
         background_song = self.choose_background_song()
         if background_song:
             audio_source = self.loop_audio(background_song, self.audio_loops)
-            vr.set_audio_source(audio_source)
 
         print "-" * 42
         print "Creating video '%s'" % vr.get_video_file()
@@ -113,7 +128,13 @@ class GourceRenderer(object):
         print "-" * 42
 
         if self.run_command(cmd):
-            return vr.get_video_file()
+            video_file = vr.get_video_file()
+
+        if background_song:
+            mixer = VideoAudioMixer(video_file, audio_source)
+            mixer.run()
+
+        return video_file
 
     def run_command(self, command):
         returncode = os.system(command)
@@ -161,10 +182,11 @@ class MediaInfo(object):
         self.parse_info()
 
     def read_info(self):
-        cmd = 'ffmpeg -i "%s"' % self.mediafile
-        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = True)
-        stdout, stderr = p.communicate()
-        self.raw = stderr
+        cmd = "ffprobe -i '%s'" % self.mediafile
+        print "MediaInfo ffmpeg command:", cmd
+        output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
+        #print "MediaInfo output:", output
+        self.raw = output
 
     def parse_info(self):
         r_duration = re.compile('.*Duration: ([.:0-9]+)')
@@ -184,31 +206,22 @@ class MediaInfo(object):
 
 class VideoRecorder(object):
 
-    def __init__(self, video_path, video_name, audio_source = None):
+    def __init__(self, video_path, video_name):
         self.video_path = video_path
         self.video_name = video_name
         self.video_file = self.get_video_file()
-        self.audio_source = audio_source
 
     def get_command(self):
         arguments = self.__dict__.copy()
-
-        # compute additional options when audio source is given
-        arguments['audio_mixin'] = ''
-        if arguments['audio_source']:
-            arguments['audio_mixin'] = '-i "%(audio_source)s" -shortest' % arguments
 
         # Some remarks about "ffmpeg" options:
         #   - The encoder 'aac' is experimental but experimental codecs are not enabled,
         #     add '-strict -2' if you want to use it.
         command = """
             ffmpeg -y \\
-                -r 60 -f image2pipe -vcodec ppm \\
-                -i - \\
-                %(audio_mixin)s \\
-                -vcodec libx264 -preset slow -threads 0 \\
-                -strict -2 \\
-                -shortest \\
+                -r 60 \\
+                -vcodec ppm -f image2pipe -i - \\
+                -vcodec libx264 -pix_fmt yuv420p -preset medium -threads 0 -strict -2 \\
                 "%(video_file)s" \\
             """ % arguments
         return command
@@ -222,8 +235,22 @@ class VideoRecorder(object):
     def exists(self):
         return os.path.exists(self.get_video_file())
 
-    def set_audio_source(self, audio_source):
-        self.audio_source = audio_source
+
+class VideoAudioMixer(object):
+
+    def __init__(self, video_file, audio_file):
+        self.video_file = video_file
+        self.audio_file = audio_file
+        self.duration = None
+
+    def run(self):
+        extension = os.path.splitext(self.video_file)[1]
+        tmpfile = self.video_file + '.tmp' + extension
+        cmd = "ffmpeg -y -i '%s' -i '%s' -vcodec copy -acodec copy -async 1 -shortest '%s'" % (self.video_file, self.audio_file, tmpfile)
+        print "VideoAudioMixer ffmpeg command:", cmd
+        output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
+        #print "VideoAudioMixer ffmpeg output:", output
+        shutil.move(tmpfile, self.video_file)
 
 
 def render_all():
@@ -259,6 +286,7 @@ def render_single():
     parser.add_option("-a", "--audio-source", dest = "audio_source", type = "str", help = "path to background song")
     parser.add_option("-l", "--audio-loops", dest = "audio_loops", type = "int", help = "how often to loop the given background song (*must* be longer than video since ffmpeg is started with option '-shortest')")
     parser.add_option("-o", "--overwrite", dest = "overwrite", action = "store_true", help = "whether to overwrite video files")
+    parser.add_option("-t", "--time-lapse", dest = "time_lapse", action = "store_true", help = "run in time-lapse mode")
     (options, args) = parser.parse_args()
 
     if not options.path:
@@ -276,7 +304,7 @@ def render_single():
     print "Rendering project history of single project '%s <%s>' using 'gource'" % (options.name, options.path)
     source_path = sys.argv[1]
     target_path = sys.argv[2]
-    gr = GourceRenderer(source_path, target_path, overwrite = options.overwrite, audio_source = options.audio_source, audio_loops = options.audio_loops)
+    gr = GourceRenderer(source_path, target_path, overwrite = options.overwrite, audio_source = options.audio_source, audio_loops = options.audio_loops, time_lapse = options.time_lapse)
     gr.process_project(Project(name=options.name, path=options.path))
 
 if __name__ == '__main__':
