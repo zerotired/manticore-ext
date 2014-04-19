@@ -9,6 +9,11 @@ Manticore extensions CHANGES
 .. include:: manticore-links.rst
 
 
+2014-04-19 0.2.0
+================
+- add --audio-source commandline option to provide background audio
+- fix ffmpeg command after upgrading to ffmpeg-2.2.1
+
 2013-11-03 0.1.5
 ================
 - statistics fix: add newline after "all-git" in rst index file

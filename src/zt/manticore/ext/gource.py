@@ -1,29 +1,47 @@
 import os, sys
 import re
+import shutil
 import subprocess
 from . import Project, walk_projects
 
+"""
+Renders video of repository commit history using gource, adds background song.
+
+Prerequisites::
+
+    sudo port install ffmpeg gource mp3wrap
+
+Synopsis::
+
+    bin/gource-render-single \
+        --name acme-trunk \
+        --path ~/dev/three-investigators/acme/trunk \
+        --audio-source '/home/foobar/music/Beastie boys/Suco De Tangerina.mp3' \
+        --audio-loops 50 \
+        # --overwrite
+"""
 
 class GourceRenderer(object):
     """Renders project history using 'gource'."""
 
-    def __init__(self, source_path, target_path, overwrite = False, audio_loops = None):
+    def __init__(self, source_path, target_path, overwrite = False, audio_source = None, audio_loops = None):
 
         self.project_path = source_path
         self.output_path = target_path
 
         # configuration data
         self.gource_cmd_tpl = """
-            gource --title "%(title)s"  \
-                --seconds-per-day 5 --time-scale 1.5  \
-                --disable-auto-rotate --file-idle-time 20  \
-                --hide bloom  \
+            gource --title "%(title)s"  \\
+                --seconds-per-day 5 --time-scale 1.5  \\
+                --disable-auto-rotate --file-idle-time 20  \\
+                --hide bloom  \\
                 --stop-at-end -o -"""
 
         # options
         self.overwrite = overwrite
         if audio_loops is None:
             audio_loops = 10
+        self.audio_source = audio_source
         self.audio_loops = audio_loops
 
     def get_gource_command(self, title):
@@ -34,9 +52,11 @@ class GourceRenderer(object):
         return command
 
     def choose_background_song(self):
-        # FIXME: implement background song picker (through command line argument)
-        random_song = '/home/foobar/music/Beastie boys/Suco De Tangerina.mp3'
-        return random_song
+        # TODO: enhance song picker (e.g. random or mapped selection from a directory)
+        if self.audio_source and os.path.isfile(self.audio_source):
+            return self.audio_source
+        elif os.path.isfile(os.environ.get('GOURCE_AUDIO_SOURCE', '')):
+            return os.environ.get('GOURCE_AUDIO_SOURCE')
 
     def process_projects(self):
 
@@ -80,8 +100,9 @@ class GourceRenderer(object):
             return vr.get_video_file()
 
         background_song = self.choose_background_song()
-        audio_file = self.loop_audio(background_song, self.audio_loops)
-        vr.set_audio_file(audio_file)
+        if background_song:
+            audio_source = self.loop_audio(background_song, self.audio_loops)
+            vr.set_audio_source(audio_source)
 
         print "-" * 42
         print "Creating video '%s'" % vr.get_video_file()
@@ -102,20 +123,24 @@ class GourceRenderer(object):
             print "ERROR while executing command '%s'" % command
             return False
 
-    def loop_audio(self, audio_file, times = 2):
+    def loop_audio(self, audio_source, times = 2):
 
         # TODO: remove looped audio file after usage
 
-        name = os.path.basename(audio_file)
-        audio_files = ('"%s" ' % audio_file) * times
+        name = os.path.basename(audio_source)
+        audio_sources = ('"%s" ' % audio_source) * times
         mp3wrap_file = "/tmp/tmp_%s" % name
-        mp3wrap_command = 'mp3wrap "%s" %s' % (mp3wrap_file, audio_files)
+
+        if not times or times <= 1:
+            shutil.copy(audio_source, mp3wrap_file)
+            return mp3wrap_file
 
         # WTF?
         mp3wrap_file_real = mp3wrap_file.replace('.mp3', '_MP3WRAP.mp3')
         if os.path.exists(mp3wrap_file_real):
             os.unlink(mp3wrap_file_real)
 
+        mp3wrap_command = 'mp3wrap "%s" %s' % (mp3wrap_file, audio_sources)
         if self.run_command(mp3wrap_command):
             return mp3wrap_file_real
 
@@ -159,22 +184,32 @@ class MediaInfo(object):
 
 class VideoRecorder(object):
 
-    def __init__(self, video_path, video_name, audio_file = None):
+    def __init__(self, video_path, video_name, audio_source = None):
         self.video_path = video_path
         self.video_name = video_name
         self.video_file = self.get_video_file()
-        self.audio_file = audio_file
+        self.audio_source = audio_source
 
     def get_command(self):
         arguments = self.__dict__.copy()
+
+        # compute additional options when audio source is given
+        arguments['audio_mixin'] = ''
+        if arguments['audio_source']:
+            arguments['audio_mixin'] = '-i "%(audio_source)s" -shortest' % arguments
+
+        # Some remarks about "ffmpeg" options:
+        #   - The encoder 'aac' is experimental but experimental codecs are not enabled,
+        #     add '-strict -2' if you want to use it.
         command = """
-            ffmpeg -y \
-                -b 768K -r 60 -f image2pipe -vcodec ppm \
-                -i - \
-                -i "%(audio_file)s" \
-                -shortest \
-                -vcodec libx264 -vpre slow -threads 0 \
-                "%(video_file)s" \
+            ffmpeg -y \\
+                -r 60 -f image2pipe -vcodec ppm \\
+                -i - \\
+                %(audio_mixin)s \\
+                -vcodec libx264 -preset slow -threads 0 \\
+                -strict -2 \\
+                -shortest \\
+                "%(video_file)s" \\
             """ % arguments
         return command
 
@@ -187,8 +222,8 @@ class VideoRecorder(object):
     def exists(self):
         return os.path.exists(self.get_video_file())
 
-    def set_audio_file(self, audio_file):
-        self.audio_file = audio_file
+    def set_audio_source(self, audio_source):
+        self.audio_source = audio_source
 
 
 def render_all():
@@ -209,13 +244,19 @@ def render_single():
     """
     Renders single projects' vcs repository, e.g.::
 
-        bin/gource-render-single --path ~/dev/three-investigators/acme/trunk --name acme-trunk --audio-loops 50 [--overwrite]
+        bin/gource-render-single \
+            --name acme-trunk \
+            --path ~/dev/three-investigators/acme/trunk \
+            --audio-source '/home/foobar/music/Beastie boys/Suco De Tangerina.mp3' \
+            --audio-loops 50 \
+            # --overwrite
     """
 
     from optparse import OptionParser
     parser = OptionParser()
     parser.add_option("-p", "--path", dest = "path", help = "path to vcs repository")
     parser.add_option("-n", "--name", dest = "name", help = "project name (output video basename w/o extension) [optional]")
+    parser.add_option("-a", "--audio-source", dest = "audio_source", type = "str", help = "path to background song")
     parser.add_option("-l", "--audio-loops", dest = "audio_loops", type = "int", help = "how often to loop the given background song (*must* be longer than video since ffmpeg is started with option '-shortest')")
     parser.add_option("-o", "--overwrite", dest = "overwrite", action = "store_true", help = "whether to overwrite video files")
     (options, args) = parser.parse_args()
@@ -235,7 +276,7 @@ def render_single():
     print "Rendering project history of single project '%s <%s>' using 'gource'" % (options.name, options.path)
     source_path = sys.argv[1]
     target_path = sys.argv[2]
-    gr = GourceRenderer(source_path, target_path, overwrite = options.overwrite, audio_loops = options.audio_loops)
+    gr = GourceRenderer(source_path, target_path, overwrite = options.overwrite, audio_source = options.audio_source, audio_loops = options.audio_loops)
     gr.process_project(Project(name=options.name, path=options.path))
 
 if __name__ == '__main__':
