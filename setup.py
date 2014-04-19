@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 setup(
     name='zt.manticore.ext',
-    version='0.1.5',
+    version='0.2.0',
     url='https://github.com/zerotired/manticore-ext',
     download_url='',
     license='BSD',
